@@ -172,7 +172,6 @@
 </head>
 <body>
 
-    <!-- Silent audio element to prevent browser background throttling / going offline -->
     <audio id="keepAliveAudio" loop style="display:none;">
         <source src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YRAAAAAAAA==" type="audio/wav">
     </audio>
@@ -216,7 +215,7 @@
             </div>
         </div>
 
-        <!-- Chat Area View (Active Client Tab) -->
+        <!-- Chat Area View -->
         <div class="chat-area-container" id="chat-area-view">
             <div class="wa-chat-body" id="chat-messages"></div>
             <div class="wa-footer">
@@ -237,7 +236,6 @@
         let originalTitle = document.title;
         let notificationTimer = null;
 
-        // Auto-play silent audio to keep background thread alive (anti-offline fix)
         document.addEventListener('click', () => {
             const audio = document.getElementById('keepAliveAudio');
             if (audio.paused) {
@@ -247,7 +245,12 @@
 
         function initAdmin() {
             peer = new Peer(ADMIN_FIXED_ID, {
-                debug: 1
+                config: {
+                    'iceServers': [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
             });
 
             peer.on('open', (id) => {
@@ -257,7 +260,6 @@
             peer.on('error', (err) => {
                 if(err.type === 'unavailable-id') {
                     document.getElementById('connection-status').innerText = "Conflict (Tab open elsewhere)";
-                    // Auto retry connection after 5 seconds if another tab closed
                     setTimeout(() => {
                         try { peer.reconnect(); } catch(e) { location.reload(); }
                     }, 5000);
@@ -294,7 +296,6 @@
                         updateClientTabsUI();
                     }
 
-                    // Trigger notification in title/tab if minimized or on another tab
                     triggerVisualNotification("💬 New Message Received!");
                 });
 
@@ -334,7 +335,6 @@
 
         initAdmin();
 
-        // Flash browser window title to notify admin without native permission prompts
         function triggerVisualNotification(text) {
             if (notificationTimer) clearInterval(notificationTimer);
             let toggle = false;
@@ -343,7 +343,6 @@
                 toggle = !toggle;
             }, 1000);
 
-            // Reset title when window gains focus
             window.addEventListener('focus', () => {
                 if (notificationTimer) clearInterval(notificationTimer);
                 document.title = originalTitle;
