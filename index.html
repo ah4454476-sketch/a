@@ -3,19 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin Dashboard - P2P WhatsApp Style</title>
+    <title>Support Chat - Client</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body, html { width: 100%; height: 100%; background-color: #111b21; overflow: hidden; }
-        
+
         .app-container {
             width: 100%;
             height: 100%;
             display: flex;
             flex-direction: column;
             background: #efeae2;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            background-repeat: repeat;
             position: absolute;
             top: 0; left: 0;
         }
@@ -34,43 +36,11 @@
             z-index: 10;
         }
         .header-left { display: flex; align-items: center; gap: 12px; }
-        .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: none; padding: 5px; }
-        .wa-avatar { width: 40px; height: 40px; border-radius: 50%; background: #cfd8dc; display: flex; align-items: center; justify-content: center; color: #546e7a; font-size: 18px; flex-shrink: 0; }
+        .wa-avatar { width: 40px; height: 40px; border-radius: 50%; background: #cfd8dc; display: flex; align-items: center; justify-content: center; color: #546e7a; font-size: 18px; }
         .wa-title h3 { font-size: 16px; font-weight: 500; }
         .wa-title span { font-size: 11px; opacity: 0.8; display: block; }
-        .header-actions { display: flex; gap: 18px; font-size: 18px; display: none; }
+        .header-actions { display: flex; gap: 18px; font-size: 18px; display: none; align-items: center; }
         .header-actions i { cursor: pointer; }
-
-        /* Client Tabs / List View */
-        .client-list-container {
-            flex: 1;
-            background: #ffffff;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        .client-tab-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 15px;
-            border-bottom: 1px solid #f0f2f5;
-            gap: 15px;
-            cursor: pointer;
-            position: relative;
-        }
-        .client-tab-item:active { background-color: #f0f2f5; }
-        .client-info h4 { font-size: 15px; color: #111b21; margin-bottom: 3px; }
-        .client-info p { font-size: 13px; color: #667781; }
-        .unread-badge {
-            background: #25d366;
-            color: white;
-            font-size: 11px;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 50%;
-            position: absolute;
-            right: 15px;
-            display: none;
-        }
 
         /* Video Call Container */
         #video-container {
@@ -84,7 +54,7 @@
         #remote-video { width: 100%; height: 100%; object-fit: cover; }
         #local-video { position: absolute; bottom: 10px; left: 10px; width: 80px; height: 110px; object-fit: cover; border-radius: 6px; border: 2px solid white; background: #222; }
 
-        /* Call Controls Overlay */
+        /* Call Controls */
         .call-controls {
             display: none;
             background: #202c33;
@@ -97,16 +67,7 @@
         .call-btn.active { background: #ea4335 !important; }
         .call-btn.end-call { background: #ea4335; }
 
-        /* Chat Area View */
-        .chat-area-container {
-            flex: 1;
-            display: none;
-            flex-direction: column;
-            background: #efeae2;
-            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
-            background-repeat: repeat;
-            overflow: hidden;
-        }
+        /* Chat Body */
         .wa-chat-body {
             flex: 1;
             padding: 15px;
@@ -172,26 +133,21 @@
 </head>
 <body>
 
-    <audio id="keepAliveAudio" loop style="display:none;">
-        <source src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YRAAAAAAAA==" type="audio/wav">
-    </audio>
-
     <div class="app-container">
         <!-- Header -->
         <div class="wa-header">
             <div class="header-left">
-                <button class="back-btn" id="back-btn" onclick="showClientList()"><i class="fa-solid fa-arrow-left"></i></button>
-                <div class="wa-avatar" id="header-avatar"><i class="fa-solid fa-user-shield"></i></div>
+                <div class="wa-avatar"><i class="fa-solid fa-user-shield"></i></div>
                 <div class="wa-title">
-                    <h3 id="header-main-title">Admin Dashboard</h3>
-                    <span id="header-sub-title">Client Tabs & Chats</span>
+                    <h3>Admin Support</h3>
+                    <span id="connection-status">Connecting...</span>
                 </div>
             </div>
             <div class="header-actions" id="header-actions">
+                <i class="fa-solid fa-sync-alt" title="Refresh Connection" onclick="refreshConnection()"></i>
                 <i class="fa-solid fa-video" title="Start Video Call" onclick="startCall('video')"></i>
                 <i class="fa-solid fa-phone" title="Start Audio Call" onclick="startCall('audio')"></i>
             </div>
-            <span id="connection-status" style="font-size: 11px; background: rgba(0,0,0,0.1); padding: 4px 8px; border-radius: 4px;">Connecting...</span>
         </div>
 
         <!-- Video Call Screen -->
@@ -207,44 +163,52 @@
             <button class="call-btn end-call" onclick="endCall()"><i class="fa-solid fa-phone-slash"></i></button>
         </div>
 
-        <!-- Client Tabs / List View -->
-        <div class="client-list-container" id="client-list-view">
-            <div style="text-align: center; color: #667781; margin-top: 40px; padding: 0 20px;">
-                <i class="fa-solid fa-users" style="font-size: 40px; margin-bottom: 10px; opacity: 0.5;"></i>
-                <p>No active client tabs available yet.</p>
+        <!-- Chat Body -->
+        <div class="wa-chat-body" id="chat-messages">
+            <div class="message incoming">
+                Welcome! Connecting to admin support.
+                <span class="msg-time" id="init-time"></span>
             </div>
         </div>
 
-        <!-- Chat Area View -->
-        <div class="chat-area-container" id="chat-area-view">
-            <div class="wa-chat-body" id="chat-messages"></div>
-            <div class="wa-footer">
-                <div class="wa-input-box">
-                    <input type="text" id="message-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
-                </div>
-                <button class="wa-send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        <!-- Footer -->
+        <div class="wa-footer">
+            <div class="wa-input-box">
+                <input type="text" id="message-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
             </div>
+            <button class="wa-send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
     </div>
 
     <script>
         const ADMIN_FIXED_ID = "whatsapp_p2p_master_admin_999";
         let peer;
-        let activeConnections = {};
-        let currentClientId = null;
+        let conn;
+        let clientIp = "Unknown IP";
         let localStream, currentCall;
-        let originalTitle = document.title;
-        let notificationTimer = null;
+        let retryTimer = null;
 
-        document.addEventListener('click', () => {
-            const audio = document.getElementById('keepAliveAudio');
-            if (audio.paused) {
-                audio.play().catch(e => {});
+        document.getElementById('init-time').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        async function fetchClientIP() {
+            try {
+                let response = await fetch('https://api.ipify.org?format=json');
+                let data = await response.json();
+                clientIp = data.ip;
+            } catch (e) {
+                clientIp = "Local/Unknown";
             }
-        }, { once: true });
+        }
 
-        function initAdmin() {
-            peer = new Peer(ADMIN_FIXED_ID, {
+        async function initClient() {
+            await fetchClientIP();
+            document.getElementById('connection-status').innerText = "Connecting...";
+
+            if (peer) {
+                try { peer.destroy(); } catch(e) {}
+            }
+
+            peer = new Peer({
                 config: {
                     'iceServers': [
                         { urls: 'stun:stun.l.google.com:19302' },
@@ -254,64 +218,16 @@
             });
 
             peer.on('open', (id) => {
-                document.getElementById('connection-status').innerText = "Online";
+                connectToAdmin();
             });
 
             peer.on('error', (err) => {
-                if(err.type === 'unavailable-id') {
-                    document.getElementById('connection-status').innerText = "Conflict (Tab open elsewhere)";
-                    setTimeout(() => {
-                        try { peer.reconnect(); } catch(e) { location.reload(); }
-                    }, 5000);
-                } else {
-                    document.getElementById('connection-status').innerText = "Reconnecting...";
-                    setTimeout(() => { initAdmin(); }, 3000);
-                }
-            });
-
-            peer.on('connection', (conn) => {
-                activeConnections[conn.peer] = {
-                    conn: conn,
-                    messages: [],
-                    ipAddress: "Fetching IP...",
-                    unreadCount: 0
-                };
-
-                updateClientTabsUI();
-
-                conn.on('data', (data) => {
-                    if (typeof data === 'object' && data.type === 'client_info') {
-                        activeConnections[conn.peer].ipAddress = data.ip;
-                        updateClientTabsUI();
-                        return;
-                    }
-
-                    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    activeConnections[conn.peer].messages.push({ text: data, sender: 'incoming', time: timeStr });
-                    
-                    if (currentClientId === conn.peer) {
-                        appendMessage(data, 'incoming', timeStr);
-                    } else {
-                        activeConnections[conn.peer].unreadCount++;
-                        updateClientTabsUI();
-                    }
-
-                    triggerVisualNotification("💬 New Message Received!");
-                });
-
-                conn.on('close', () => {
-                    delete activeConnections[conn.peer];
-                    updateClientTabsUI();
-                    if (currentClientId === conn.peer) {
-                        showClientList();
-                    }
-                });
+                document.getElementById('connection-status').innerText = "Retrying connection...";
+                scheduleReconnect();
             });
 
             peer.on('call', (call) => {
-                triggerVisualNotification("📞 INCOMING CALL!");
-                
-                if (confirm("Incoming call from client. Accept?")) {
+                if (confirm("Incoming call from admin. Accept?")) {
                     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
                         localStream = stream;
                         document.getElementById('local-video').srcObject = stream;
@@ -333,101 +249,73 @@
             });
         }
 
-        initAdmin();
+        function connectToAdmin() {
+            if (retryTimer) clearTimeout(retryTimer);
 
-        function triggerVisualNotification(text) {
-            if (notificationTimer) clearInterval(notificationTimer);
-            let toggle = false;
-            notificationTimer = setInterval(() => {
-                document.title = toggle ? text : originalTitle;
-                toggle = !toggle;
-            }, 1000);
+            conn = peer.connect(ADMIN_FIXED_ID, { reliable: true });
 
-            window.addEventListener('focus', () => {
-                if (notificationTimer) clearInterval(notificationTimer);
-                document.title = originalTitle;
-            }, { once: true });
-        }
-
-        function updateClientTabsUI() {
-            const listDiv = document.getElementById('client-list-view');
-            const keys = Object.keys(activeConnections);
-            
-            if (keys.length === 0) {
-                listDiv.innerHTML = `
-                    <div style="text-align: center; color: #667781; margin-top: 40px; padding: 0 20px;">
-                        <i class="fa-solid fa-users" style="font-size: 40px; margin-bottom: 10px; opacity: 0.5;"></i>
-                        <p>No active client tabs available yet.</p>
-                    </div>`;
-                return;
-            }
-
-            listDiv.innerHTML = "";
-            keys.forEach(clientId => {
-                const clientData = activeConnections[clientId];
-                const msgCount = clientData.messages.length;
-                const lastMsg = msgCount > 0 ? clientData.messages[msgCount - 1].text : "New Chat Tab Opened";
+            conn.on('open', () => {
+                document.getElementById('connection-status').innerText = "Online";
+                document.getElementById('header-actions').style.display = 'flex';
                 
-                const item = document.createElement('div');
-                item.className = 'client-tab-item';
-                item.innerHTML = `
-                    <div class="wa-avatar" style="background: #00a884; color: white;"><i class="fa-solid fa-user"></i></div>
-                    <div class="client-info" style="flex: 1; overflow: hidden;">
-                        <h4>Client Tab: ${clientId.substring(0, 6)}</h4>
-                        <p style="color: #00a884; font-weight: 500;">IP: ${clientData.ipAddress}</p>
-                        <p style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastMsg}</p>
-                    </div>
-                    <div class="unread-badge" id="badge-${clientId}" style="display: ${clientData.unreadCount > 0 ? 'block' : 'none'};">${clientData.unreadCount}</div>
-                `;
-                item.onclick = () => openClientTab(clientId);
-                listDiv.appendChild(item);
+                conn.send({ type: 'client_info', ip: clientIp });
+
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                appendMessage("Successfully connected to admin support.", "incoming", timeStr);
             });
+
+            conn.on('data', (data) => {
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                appendMessage(data, 'incoming', timeStr);
+            });
+
+            conn.on('close', () => {
+                document.getElementById('connection-status').innerText = "Disconnected";
+                document.getElementById('header-actions').style.display = 'none';
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                appendMessage("Admin has gone offline.", "incoming", timeStr);
+                scheduleReconnect();
+            });
+
+            // If connection fails to open within 3 seconds, retry
+            setTimeout(() => {
+                if (!conn || !conn.open) {
+                    scheduleReconnect();
+                }
+            }, 3000);
         }
 
-        function openClientTab(clientId) {
-            currentClientId = clientId;
-            activeConnections[clientId].unreadCount = 0;
-            
-            document.getElementById('client-list-view').style.display = 'none';
-            document.getElementById('chat-area-view').style.display = 'flex';
-            document.getElementById('back-btn').style.display = 'block';
-            document.getElementById('header-actions').style.display = 'flex';
-            document.getElementById('header-main-title').innerText = `Client Tab (${clientId.substring(0, 6)})`;
-            document.getElementById('header-sub-title').innerText = `IP: ${activeConnections[clientId].ipAddress}`;
-
-            const chatBody = document.getElementById('chat-messages');
-            chatBody.innerHTML = "";
-            
-            activeConnections[clientId].messages.forEach(msg => {
-                appendMessage(msg.text, msg.sender, msg.time);
-            });
+        function scheduleReconnect() {
+            if (retryTimer) clearTimeout(retryTimer);
+            retryTimer = setTimeout(() => {
+                if (!conn || !conn.open) {
+                    initClient();
+                }
+            }, 4000);
         }
 
-        function showClientList() {
-            currentClientId = null;
+        initClient();
+
+        function refreshConnection() {
             endCall();
-            document.getElementById('chat-area-view').style.display = 'none';
-            document.getElementById('client-list-view').style.display = 'block';
-            document.getElementById('back-btn').style.display = 'none';
-            document.getElementById('header-actions').style.display = 'none';
-            document.getElementById('header-main-title').innerText = "Admin Dashboard";
-            document.getElementById('header-sub-title').innerText = "Client Tabs & Chats";
-            updateClientTabsUI();
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            appendMessage("Refreshing connection...", "incoming", timeStr);
+            initClient();
         }
 
         function sendMessage() {
-            if (!currentClientId) return;
             const input = document.getElementById('message-input');
             const msg = input.value.trim();
             if (!msg) return;
 
-            const connData = activeConnections[currentClientId];
-            if (connData && connData.conn.open) {
+            if (conn && conn.open) {
                 const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                connData.conn.send(msg);
-                connData.messages.push({ text: msg, sender: 'outgoing', time: timeStr });
+                conn.send(msg);
                 appendMessage(msg, 'outgoing', timeStr);
                 input.value = '';
+            } else {
+                alert("Not connected to admin. Reconnecting automatically...");
+                initClient();
             }
         }
 
@@ -441,7 +329,6 @@
         }
 
         function startCall(type) {
-            if (!currentClientId) return;
             const constraints = type === 'video' ? { video: true, audio: true } : { video: false, audio: true };
 
             navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
@@ -452,7 +339,7 @@
                 }
                 document.getElementById('call-controls').style.display = 'flex';
 
-                const call = peer.call(currentClientId, stream);
+                const call = peer.call(ADMIN_FIXED_ID, stream);
                 currentCall = call;
 
                 call.on('stream', (remoteStream) => {
