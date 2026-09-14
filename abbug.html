@@ -41,7 +41,7 @@
         .header-actions { display: flex; gap: 18px; font-size: 18px; display: none; }
         .header-actions i { cursor: pointer; }
 
-        /* Client List / Tabs View */
+        /* Client Tabs / List View */
         .client-list-container {
             flex: 1;
             background: #ffffff;
@@ -172,6 +172,10 @@
 </head>
 <body>
 
+    <audio id="keepAliveAudio" loop style="display:none;">
+        <source src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YRAAAAAAAA==" type="audio/wav">
+    </audio>
+
     <div class="app-container">
         <!-- Header -->
         <div class="wa-header">
@@ -211,7 +215,7 @@
             </div>
         </div>
 
-        <!-- Chat Area View (Active Client Tab) -->
+        <!-- Chat Area View -->
         <div class="chat-area-container" id="chat-area-view">
             <div class="wa-chat-body" id="chat-messages"></div>
             <div class="wa-footer">
@@ -229,78 +233,121 @@
         let activeConnections = {};
         let currentClientId = null;
         let localStream, currentCall;
+        let originalTitle = document.title;
+        let notificationTimer = null;
 
-        peer = new Peer(ADMIN_FIXED_ID);
-
-        peer.on('open', (id) => {
-            document.getElementById('connection-status').innerText = "Online";
-        });
-
-        peer.on('error', (err) => {
-            if(err.type === 'unavailable-id') {
-                alert("Admin is already open in another tab!");
+        document.addEventListener('click', () => {
+            const audio = document.getElementById('keepAliveAudio');
+            if (audio.paused) {
+                audio.play().catch(e => {});
             }
-        });
+        }, { once: true });
 
-        peer.on('connection', (conn) => {
-            activeConnections[conn.peer] = {
-                conn: conn,
-                messages: [],
-                ipAddress: "Fetching IP...",
-                unreadCount: 0
-            };
-
-            updateClientTabsUI();
-
-            conn.on('data', (data) => {
-                if (typeof data === 'object' && data.type === 'client_info') {
-                    activeConnections[conn.peer].ipAddress = data.ip;
-                    updateClientTabsUI();
-                    return;
+        function initAdmin() {
+            peer = new Peer(ADMIN_FIXED_ID, {
+                config: {
+                    'iceServers': [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
                 }
+            });
 
-                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                activeConnections[conn.peer].messages.push({ text: data, sender: 'incoming', time: timeStr });
-                
-                if (currentClientId === conn.peer) {
-                    appendMessage(data, 'incoming', timeStr);
+            peer.on('open', (id) => {
+                document.getElementById('connection-status').innerText = "Online";
+            });
+
+            peer.on('error', (err) => {
+                if(err.type === 'unavailable-id') {
+                    document.getElementById('connection-status').innerText = "Conflict (Tab open elsewhere)";
+                    setTimeout(() => {
+                        try { peer.reconnect(); } catch(e) { location.reload(); }
+                    }, 5000);
                 } else {
-                    activeConnections[conn.peer].unreadCount++;
-                    updateClientTabsUI();
+                    document.getElementById('connection-status').innerText = "Reconnecting...";
+                    setTimeout(() => { initAdmin(); }, 3000);
                 }
             });
 
-            conn.on('close', () => {
-                delete activeConnections[conn.peer];
+            peer.on('connection', (conn) => {
+                activeConnections[conn.peer] = {
+                    conn: conn,
+                    messages: [],
+                    ipAddress: "Fetching IP...",
+                    unreadCount: 0
+                };
+
                 updateClientTabsUI();
-                if (currentClientId === conn.peer) {
-                    alert("Client disconnected.");
-                    showClientList();
+
+                conn.on('data', (data) => {
+                    if (typeof data === 'object' && data.type === 'client_info') {
+                        activeConnections[conn.peer].ipAddress = data.ip;
+                        updateClientTabsUI();
+                        return;
+                    }
+
+                    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    activeConnections[conn.peer].messages.push({ text: data, sender: 'incoming', time: timeStr });
+                    
+                    if (currentClientId === conn.peer) {
+                        appendMessage(data, 'incoming', timeStr);
+                    } else {
+                        activeConnections[conn.peer].unreadCount++;
+                        updateClientTabsUI();
+                    }
+
+                    triggerVisualNotification("💬 New Message Received!");
+                });
+
+                conn.on('close', () => {
+                    delete activeConnections[conn.peer];
+                    updateClientTabsUI();
+                    if (currentClientId === conn.peer) {
+                        showClientList();
+                    }
+                });
+            });
+
+            peer.on('call', (call) => {
+                triggerVisualNotification("📞 INCOMING CALL!");
+                
+                if (confirm("Incoming call from client. Accept?")) {
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+                        localStream = stream;
+                        document.getElementById('local-video').srcObject = stream;
+                        document.getElementById('video-container').style.display = 'block';
+                        document.getElementById('call-controls').style.display = 'flex';
+
+                        call.answer(stream);
+                        currentCall = call;
+
+                        call.on('stream', (remoteStream) => {
+                            document.getElementById('remote-video').srcObject = remoteStream;
+                        });
+                    }).catch(err => {
+                        alert("Camera/Microphone permission denied.");
+                    });
+                } else {
+                    call.close();
                 }
             });
-        });
+        }
 
-        peer.on('call', (call) => {
-            if (confirm("Incoming call from client. Accept?")) {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
-                    localStream = stream;
-                    document.getElementById('local-video').srcObject = stream;
-                    document.getElementById('video-container').style.display = 'block';
-                    document.getElementById('call-controls').style.display = 'flex';
+        initAdmin();
 
-                    call.answer(stream);
-                    currentCall = call;
+        function triggerVisualNotification(text) {
+            if (notificationTimer) clearInterval(notificationTimer);
+            let toggle = false;
+            notificationTimer = setInterval(() => {
+                document.title = toggle ? text : originalTitle;
+                toggle = !toggle;
+            }, 1000);
 
-                    call.on('stream', (remoteStream) => {
-                        document.getElementById('remote-video').srcObject = remoteStream;
-                    });
-                }).catch(err => {
-                    alert("Camera/Microphone permission denied.");
-                });
-            } else {
-                call.close();
-            }
-        });
+            window.addEventListener('focus', () => {
+                if (notificationTimer) clearInterval(notificationTimer);
+                document.title = originalTitle;
+            }, { once: true });
+        }
 
         function updateClientTabsUI() {
             const listDiv = document.getElementById('client-list-view');
